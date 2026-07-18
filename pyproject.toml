@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "simons-pairs-trading-skill"
+version = "1.1.0"
+description = "Research-only A-share cointegration and pairs-trading skill"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = [
+  "pandas==2.2.3",
+  "numpy==1.26.4",
+  "statsmodels==0.14.6",
+  "matplotlib==3.10.8",
+  "pyarrow==24.0.0",
+  "scipy==1.16.3",
+  "tabulate==0.10.0",
+  "panda_data==0.0.12",
+]
+
+[project.scripts]
+simons-pairs = "simons_pairs_trading_skill.cli:main"
+
+[tool.setuptools]
+packages = ["simons_pairs_trading_skill"]
+
+[tool.setuptools.package-dir]
+simons_pairs_trading_skill = "scripts"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+filterwarnings = [
+  "ignore:datetime.datetime.utcfromtimestamp\\(\\) is deprecated.*:DeprecationWarning:pytz.tzinfo",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100

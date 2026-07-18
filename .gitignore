@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+build/
+dist/
+site/
+*.log
+
+# 环境
+.venv/
+venv/
+.env*
+!.env.example
+
+# 数据 / 缓存 / 产出
+outputs/
+*.parquet
+simons_cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# jupyter
+.ipynb_checkpoints/
+*.ipynb

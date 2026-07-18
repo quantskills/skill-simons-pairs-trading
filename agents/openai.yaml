@@ -1,0 +1,4 @@
+interface:
+  display_name: "A股统计套利研究"
+  short_description: "用复权价格、FDR和样本外门控开展可复现A股配对研究"
+  default_prompt: "使用 $simons-pairs-trading 对A股配对策略执行可复现的形成期筛选、滚动回测与研究门控。"
