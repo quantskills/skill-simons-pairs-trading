@@ -12,7 +12,7 @@ license = "MIT"
 license-files = ["LICENSE"]
 dependencies = [
   "pandas==2.2.3",
-  "numpy==1.26.4",
+  "numpy==2.5.1",
   "statsmodels==0.14.6",
   "matplotlib==3.10.8",
   "pyarrow==24.0.0",
