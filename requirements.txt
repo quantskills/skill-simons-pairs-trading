@@ -1,7 +1,7 @@
 pandas==2.2.3
 numpy==1.26.4
 statsmodels==0.14.6
-matplotlib==3.10.8
+matplotlib==3.11.1
 pyarrow==24.0.0
 scipy==1.16.3
 tabulate==0.10.0
