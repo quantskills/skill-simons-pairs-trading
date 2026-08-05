@@ -24,19 +24,19 @@ metadata:
   external_requirements:
     runtime:
       - name: Python
-        version: "3.12"
+        version: ">=3.11,<3.13"
       - name: panda_data
         version: "0.0.12"
         distribution: installed by the user from the hash-locked requirements
         license_and_maintainer: not publicly verified; user review required
     data_access:
       - valid PandaData entitlement and permission to use requested datasets
-      - user-provided trusted HTTPS gateway; provider default HTTP is rejected
+      - provider-supplied PandaData HTTPS endpoint; provider default HTTP is rejected
     authentication:
       - short-lived PANDADATA_TOKEN, or account and password for token exchange
   permissions:
     network:
-      - outbound HTTPS to the user-configured PANDADATA_BASE_URL
+      - outbound HTTPS to the provider-supplied PANDADATA_BASE_URL
     credentials:
       - read PandaData values from the process environment or user-level ~/.pandadata.env
       - keep the SDK session in process memory; no SDK user.json persistence or reload
@@ -47,6 +47,7 @@ metadata:
   validated_environment:
     - Windows
     - PowerShell
+    - Python 3.11
     - Python 3.12
   summary_zh: 基于复权行情、同行业协整、FDR 与滚动门控的 A 股配对交易研究。
   summary_en: Conditional A-share pairs research with adjusted prices, cointegration, FDR, rolling backtests, and conservative gates.

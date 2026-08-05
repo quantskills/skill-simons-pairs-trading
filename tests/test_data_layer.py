@@ -16,6 +16,19 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import data_layer  # noqa: E402
+import pandadata_security as security  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _provider_tls_is_healthy(monkeypatch):
+    monkeypatch.setattr(
+        security,
+        "_probe_tls",
+        lambda base_url, timeout=5.0: {
+            "tls_version": "TLSv1.3",
+            "certificate_not_after": "Dec 31 23:59:59 2030 GMT",
+        },
+    )
 
 
 def test_default_credential_file_is_user_level_only():

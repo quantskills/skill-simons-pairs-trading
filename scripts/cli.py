@@ -21,11 +21,16 @@ if str(_HERE) not in sys.path:
 
 from data_layer import (  # noqa: E402
     PRICE_BASIS_TO_METHOD,
+    _load_dotenv,
     build_price_panel,
     ensure_login,
     get_industry_map,
     get_universe,
     normalize_price_basis,
+)
+from pandadata_security import (  # noqa: E402
+    PandaDataSecurityError,
+    startup_health_check,
 )
 from stats_core import (  # noqa: E402
     SELECTION_METHOD,
@@ -1136,6 +1141,30 @@ def cmd_diagnose(args) -> int:
     return 0
 
 
+def cmd_health_check(args) -> int:
+    """Check runtime, SDK, provider HTTPS, and credential readiness."""
+    _load_dotenv()
+    try:
+        report = startup_health_check(
+            timeout=args.timeout,
+            require_credentials=not args.transport_only,
+        )
+    except PandaDataSecurityError as exc:
+        print(f"[FAIL] 启动健康检查未通过：{exc}")
+        return 1
+    except Exception as exc:
+        print(f"[FAIL] 启动健康检查失败（{type(exc).__name__}）")
+        return 1
+
+    print("OK  启动健康检查通过")
+    print(f"Python：{report['python']}")
+    print(f"HTTPS 端点：{report['endpoint']}")
+    print(f"TLS：{report['tls_version']}")
+    print(f"SDK：{report['sdk']}")
+    print(f"凭证方式：{report['auth_mode']}")
+    return 0
+
+
 def cmd_check_login(_args) -> int:
     try:
         ensure_login()
@@ -1179,9 +1208,28 @@ def _add_research_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _health_timeout(value: str) -> float:
+    parsed = float(value)
+    if not math.isfinite(parsed) or not 0.1 <= parsed <= 30.0:
+        raise argparse.ArgumentTypeError("value must be between 0.1 and 30")
+    return parsed
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="simons-pairs")
     sub = parser.add_subparsers(dest="cmd", required=True)
+
+    health = sub.add_parser(
+        "health-check",
+        help="检查 Python、SDK、服务方 HTTPS 和凭证配置",
+    )
+    health.add_argument("--timeout", type=_health_timeout, default=5.0)
+    health.add_argument(
+        "--transport-only",
+        action="store_true",
+        help="只检查运行环境与 HTTPS，不要求已配置凭证",
+    )
+    health.set_defaults(func=cmd_health_check)
 
     signal = sub.add_parser("signal", help="生成受同日回测门控的研究信号")
     _add_research_args(signal)
@@ -1213,6 +1261,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
     try:
+        if args.cmd not in {"health-check", "check-login"}:
+            ensure_login()
         return int(args.func(args) or 0)
     except (KeyboardInterrupt, SystemExit):
         raise

@@ -1,14 +1,18 @@
-"""Fail-closed PandaData session setup.
+"""Fail-closed PandaData startup and session security.
 
-panda_data 0.0.12 defaults to HTTP and persists recoverable credentials.
-This adapter requires HTTPS, disables SDK disk-based re-login for the life
-of the process, and reinitializes the data client with token-only
-authentication.
+The upstream SDK currently defaults to HTTP and can persist recoverable
+credentials. This adapter requires a provider-operated HTTPS endpoint,
+verifies its certificate before login, disables SDK disk-based re-login,
+and reinitializes the data client with token-only authentication.
 """
 from __future__ import annotations
 
 import importlib
+import math
 import os
+import socket
+import ssl
+import sys
 import tempfile
 from typing import Any
 from urllib.error import HTTPError
@@ -16,8 +20,11 @@ from urllib.parse import urlparse
 from urllib.request import HTTPRedirectHandler
 
 
-DEFAULT_BASE_URL = ""
 EMPTY_CREDENTIAL = ""
+MIN_PYTHON = (3, 11)
+MAX_PYTHON_EXCLUSIVE = (3, 13)
+DEFAULT_HEALTH_TIMEOUT = 5.0
+MAX_HEALTH_TIMEOUT = 30.0
 
 
 class PandaDataSecurityError(RuntimeError):
@@ -27,96 +34,145 @@ class PandaDataSecurityError(RuntimeError):
 class _RejectRedirects(HTTPRedirectHandler):
     """Reject redirects so credentials and tokens cannot change origin."""
 
-    def redirect_request(
-        self, req, fp, code, msg, headers, newurl
-    ):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
         raise HTTPError(
             req.full_url,
             code,
-            "PandaData 安全策略禁止 HTTP 重定向",
+            "PandaData security policy rejects HTTP redirects",
             headers,
             fp,
         )
 
 
+def _validate_python_runtime(version_info=None) -> str:
+    """Validate the supported Python range and return a display version."""
+    raw = version_info or sys.version_info[:3]
+    version = tuple(int(part) for part in raw[:3])
+    display = ".".join(str(part) for part in version)
+    if version[:2] < MIN_PYTHON:
+        raise PandaDataSecurityError(
+            "Python >=3.11 is required for this skill"
+        )
+    if version[:2] >= MAX_PYTHON_EXCLUSIVE:
+        raise PandaDataSecurityError(
+            "This release supports Python >=3.11 and <3.13"
+        )
+    return display
+
+
 def _base_url() -> str:
-    return (
-        os.environ.get("PANDADATA_BASE_URL")
-        or os.environ.get("JAVA_SERVICE_BASE_URL")
-        or DEFAULT_BASE_URL
-    ).strip().rstrip("/")
+    """Return only the explicitly configured provider endpoint."""
+    return os.environ.get("PANDADATA_BASE_URL", "").strip().rstrip("/")
 
 
 def _validate_transport(base_url: str) -> str:
+    """Require an unambiguous provider-operated HTTPS endpoint."""
     parsed = urlparse(base_url)
-    if parsed.scheme != "https" or not parsed.hostname:
+    if parsed.scheme.lower() != "https" or not parsed.hostname:
         raise PandaDataSecurityError(
-            "PANDADATA_BASE_URL 必须是完整的 https:// 地址；"
-            "为避免凭证或令牌被窃听，本工具不支持 HTTP"
+            "PANDADATA_BASE_URL must be a complete https:// endpoint supplied "
+            "by the PandaData service provider"
         )
     if parsed.username or parsed.password:
         raise PandaDataSecurityError(
-            "PANDADATA_BASE_URL 不得包含账号或密码"
+            "PANDADATA_BASE_URL must not contain a username or password"
         )
+    if parsed.query or parsed.fragment:
+        raise PandaDataSecurityError(
+            "PANDADATA_BASE_URL must not contain a query or fragment"
+        )
+    if any(character.isspace() for character in parsed.netloc):
+        raise PandaDataSecurityError(
+            "PANDADATA_BASE_URL contains invalid whitespace"
+        )
+    try:
+        parsed.port
+    except ValueError as exc:
+        raise PandaDataSecurityError(
+            "PANDADATA_BASE_URL contains an invalid port"
+        ) from exc
     return base_url
+
+
+def _validate_timeout(timeout: float) -> float:
+    try:
+        value = float(timeout)
+    except (TypeError, ValueError) as exc:
+        raise PandaDataSecurityError(
+            "Health-check timeout must be a number"
+        ) from exc
+    if not math.isfinite(value) or not 0.1 <= value <= MAX_HEALTH_TIMEOUT:
+        raise PandaDataSecurityError(
+            "Health-check timeout must be between 0.1 and 30 seconds"
+        )
+    return value
+
+
+def _probe_tls(
+    base_url: str, *, timeout: float = DEFAULT_HEALTH_TIMEOUT
+) -> dict[str, str]:
+    """Verify DNS, TCP, hostname, certificate chain, and TLS negotiation."""
+    base_url = _validate_transport(base_url)
+    timeout = _validate_timeout(timeout)
+    parsed = urlparse(base_url)
+    hostname = parsed.hostname
+    port = parsed.port or 443
+    context = ssl.create_default_context()
+    context.check_hostname = True
+    context.verify_mode = ssl.CERT_REQUIRED
+
+    try:
+        with socket.create_connection((hostname, port), timeout=timeout) as raw:
+            with context.wrap_socket(raw, server_hostname=hostname) as secure:
+                tls_version = secure.version() or "unknown"
+                certificate = secure.getpeercert()
+    except (OSError, ssl.SSLError) as exc:
+        raise PandaDataSecurityError(
+            "PandaData provider HTTPS health check failed "
+            f"({type(exc).__name__})"
+        ) from None
+
+    if not certificate:
+        raise PandaDataSecurityError(
+            "PandaData provider did not present a verifiable certificate"
+        )
+    return {
+        "tls_version": tls_version,
+        "certificate_not_after": str(certificate.get("notAfter", "unknown")),
+    }
 
 
 def _sdk_modules() -> tuple[Any, Any, Any, Any, Any]:
     try:
         auth_manager = importlib.import_module("panda_data.auth_manager")
         client_module = importlib.import_module("panda_data.client")
-        token_module = importlib.import_module(
-            "panda_data.readers.init_token"
-        )
-        transport_module = importlib.import_module(
-            "panda_data.transport.http"
-        )
+        token_module = importlib.import_module("panda_data.readers.init_token")
+        transport_module = importlib.import_module("panda_data.transport.http")
         future_module = importlib.import_module(
             "panda_data.readers.future_reader"
         )
     except Exception as exc:
         raise PandaDataSecurityError(
-            "当前 panda_data 安装不支持安全会话适配"
+            "Installed panda_data is incompatible with the secure adapter"
         ) from exc
 
-    if not callable(getattr(auth_manager, "save_auth_state", None)):
+    required = (
+        (auth_manager, "save_auth_state"),
+        (auth_manager, "_persist_credentials"),
+        (auth_manager, "_read_persisted_credentials"),
+        (client_module, "init"),
+        (transport_module, "_auth_auto_login"),
+        (transport_module, "_auth_re_login"),
+        (transport_module.HTTPClient, "_delete_token_file"),
+        (future_module, "download_future_research_report"),
+    )
+    if any(not callable(getattr(module, name, None)) for module, name in required):
         raise PandaDataSecurityError(
-            "当前 panda_data 缺少内存令牌接口"
-        )
-    if not callable(getattr(auth_manager, "_persist_credentials", None)):
-        raise PandaDataSecurityError(
-            "当前 panda_data 无法禁用凭证落盘"
-        )
-    if not callable(
-        getattr(auth_manager, "_read_persisted_credentials", None)
-    ):
-        raise PandaDataSecurityError(
-            "当前 panda_data 无法禁用磁盘凭证读取"
-        )
-    if not callable(getattr(client_module, "init", None)):
-        raise PandaDataSecurityError(
-            "当前 panda_data 缺少数据客户端初始化接口"
+            "Installed panda_data is incompatible with the secure adapter"
         )
     if not hasattr(token_module, "init_client"):
         raise PandaDataSecurityError(
-            "当前 panda_data 无法隔离带密码的数据客户端"
-        )
-    for name in ("_auth_auto_login", "_auth_re_login"):
-        if not callable(getattr(transport_module, name, None)):
-            raise PandaDataSecurityError(
-                "当前 panda_data 无法禁用磁盘自动重登录"
-            )
-    if not callable(
-        getattr(transport_module.HTTPClient, "_delete_token_file", None)
-    ):
-        raise PandaDataSecurityError(
-            "当前 panda_data 无法阻止删除既有磁盘凭证"
-        )
-    if not callable(
-        getattr(future_module, "download_future_research_report", None)
-    ):
-        raise PandaDataSecurityError(
-            "当前 panda_data 无法隔离研报下载凭证路径"
+            "Installed panda_data cannot isolate the data client from passwords"
         )
     return (
         auth_manager,
@@ -127,12 +183,61 @@ def _sdk_modules() -> tuple[Any, Any, Any, Any, Any]:
     )
 
 
+def _auth_mode() -> str:
+    token = os.environ.get("PANDADATA_TOKEN", "").strip()
+    username = (
+        os.environ.get("PANDADATA_USER")
+        or os.environ.get("PANDADATA_MOBILE")
+        or os.environ.get("PANDADATA_USERNAME")
+        or os.environ.get("PANDA_USERNAME")
+        or ""
+    ).strip()
+    password = os.environ.get("PANDADATA_PASSWORD", "").strip()
+    if token:
+        return "token"
+    if username and password:
+        return "account"
+    return "missing"
+
+
+def _preflight(timeout: float):
+    python_version = _validate_python_runtime()
+    endpoint = _validate_transport(_base_url())
+    modules = _sdk_modules()
+    tls = _probe_tls(endpoint, timeout=timeout)
+    return python_version, endpoint, modules, tls
+
+
+def startup_health_check(
+    *,
+    timeout: float = DEFAULT_HEALTH_TIMEOUT,
+    require_credentials: bool = True,
+) -> dict[str, str]:
+    """Run the startup checks and return a secret-free readiness report."""
+    python_version, endpoint, _modules, tls = _preflight(timeout)
+    auth_mode = _auth_mode()
+    if require_credentials and auth_mode == "missing":
+        raise PandaDataSecurityError(
+            "Set PANDADATA_TOKEN or both PANDADATA_USER and "
+            "PANDADATA_PASSWORD"
+        )
+    return {
+        "status": "ok",
+        "python": python_version,
+        "endpoint": endpoint,
+        "sdk": "compatible",
+        "auth_mode": auth_mode,
+        **tls,
+    }
+
+
 def _install_memory_only_guards(
-        auth_manager: Any,
-        transport_module: Any,
-        future_module: Any,
+    auth_manager: Any,
+    transport_module: Any,
+    future_module: Any,
 ) -> None:
     """Disable credential persistence and disk re-login process-wide."""
+
     def _do_not_persist(*args, **kwargs) -> None:
         return None
 
@@ -147,7 +252,8 @@ def _install_memory_only_guards(
 
     def _disabled_disk_feature(*args, **kwargs):
         raise PandaDataSecurityError(
-            "当前安全会话禁用依赖 user.json 的第三方研报下载"
+            "The memory-only session disables third-party report downloads "
+            "that depend on user.json"
         )
 
     isolated_path = os.path.join(
@@ -158,10 +264,9 @@ def _install_memory_only_guards(
 
     current_build_opener = transport_module.build_opener
     if not getattr(current_build_opener, "_quantskills_guarded", False):
+
         def _secure_build_opener(*handlers):
-            return current_build_opener(
-                _RejectRedirects(), *handlers
-            )
+            return current_build_opener(_RejectRedirects(), *handlers)
 
         _secure_build_opener._quantskills_guarded = True
         transport_module.build_opener = _secure_build_opener
@@ -174,9 +279,7 @@ def _install_memory_only_guards(
     transport_module._auth_auto_login = _do_not_relogin
     transport_module._auth_re_login = _do_not_relogin
     transport_module.HTTPClient._delete_token_file = _do_not_delete
-    future_module.download_future_research_report = (
-        _disabled_disk_feature
-    )
+    future_module.download_future_research_report = _disabled_disk_feature
 
 
 def establish_session(
@@ -185,15 +288,16 @@ def establish_session(
     username: str = "",
     password: str = "",
     token: str = "",
+    health_timeout: float = DEFAULT_HEALTH_TIMEOUT,
 ) -> str:
-    """Create a memory-only, token-authenticated PandaData session."""
-    base_url = _validate_transport(_base_url())
-    username = username.strip()
-    password = password.strip()
-    token = token.strip()
+    """Create a verified, memory-only, token-authenticated session."""
+    _python, base_url, modules, _tls = _preflight(health_timeout)
+    username = (username or "").strip()
+    password = (password or "").strip()
+    token = (token or "").strip()
     if not token and (not username or not password):
         raise PandaDataSecurityError(
-            "缺少 PandaData 临时令牌或账号密码"
+            "A temporary token or complete PandaData account is required"
         )
 
     (
@@ -202,10 +306,8 @@ def establish_session(
         token_module,
         transport_module,
         future_module,
-    ) = _sdk_modules()
-    _install_memory_only_guards(
-        auth_manager, transport_module, future_module
-    )
+    ) = modules
+    _install_memory_only_guards(auth_manager, transport_module, future_module)
     original_init_client = token_module.init_client
 
     def _do_not_persist(*args, **kwargs) -> None:
@@ -225,7 +327,7 @@ def establish_session(
             expires_in = int(auth_manager.get_token_ttl())
         if not session_token:
             raise PandaDataSecurityError(
-                "PandaData 未返回有效令牌"
+                "PandaData did not return a valid token"
             )
         auth_manager.save_auth_state(
             username=EMPTY_CREDENTIAL,
@@ -252,7 +354,7 @@ def establish_session(
             or getattr(client_config, "verify_ssl", True) is not True
         ):
             raise PandaDataSecurityError(
-                "PandaData 数据客户端未满足令牌与证书校验要求"
+                "PandaData client did not preserve token-only verified TLS"
             )
         return str(session_token)
     finally:

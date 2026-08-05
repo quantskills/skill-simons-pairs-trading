@@ -1,3 +1,3 @@
 """Installable package for the simons-pairs-trading research skill."""
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"

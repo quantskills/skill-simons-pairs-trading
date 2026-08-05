@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 
-CODE_VERSION = "1.1.0"
+CODE_VERSION = "1.2.0"
 
 REQUIRED_GATE_CONFIG_KEYS = (
     "formation_days",

@@ -68,5 +68,5 @@ def test_package_and_ci_versions_match_the_research_contract():
     workflow = _read(".github/workflows/ci.yml")
 
     assert project["project"]["version"] == CODE_VERSION
-    assert project["project"]["requires-python"] == ">=3.12,<3.13"
+    assert project["project"]["requires-python"] == ">=3.11,<3.13"
     assert "--require-hashes" in workflow

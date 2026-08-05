@@ -91,6 +91,7 @@ def test_all_help_commands_render_without_crashing():
         ["signal", "--help"],
         ["backtest", "--help"],
         ["diagnose", "--help"],
+        ["health-check", "--help"],
         ["check-login", "--help"],
     ]
     for args in commands:
@@ -117,6 +118,71 @@ def test_check_login_never_prints_token(monkeypatch, capsys):
     assert token not in output
     assert token[:8] not in output
     assert "OK" in output
+
+
+def test_health_check_reports_safely(monkeypatch, capsys):
+    token = "must-never-appear"
+    monkeypatch.setenv("PANDADATA_TOKEN", token)
+    monkeypatch.setattr(simons_cli, "_load_dotenv", lambda candidates=None: None)
+    monkeypatch.setattr(
+        simons_cli,
+        "startup_health_check",
+        lambda **kwargs: {
+            "status": "ok",
+            "python": "3.11.9",
+            "endpoint": "https://provider.example.test/api",
+            "sdk": "compatible",
+            "auth_mode": "token",
+            "tls_version": "TLSv1.3",
+            "certificate_not_after": "2030-12-31",
+        },
+    )
+
+    rc = simons_cli.cmd_health_check(
+        SimpleNamespace(timeout=3.0, transport_only=False)
+    )
+
+    output = capsys.readouterr().out
+    assert rc == 0
+    assert "OK" in output
+    assert token not in output
+
+
+def test_main_runs_login_before_data_command(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        simons_cli, "ensure_login", lambda: calls.append("login") or "ok"
+    )
+    monkeypatch.setattr(
+        simons_cli,
+        "cmd_signal",
+        lambda args: calls.append("command") or 0,
+    )
+
+    rc = simons_cli.main(["signal"])
+
+    assert rc == 0
+    assert calls == ["login", "command"]
+
+
+def test_main_fails_closed_before_data_access(monkeypatch, capsys):
+    secret = "must-never-appear"
+    monkeypatch.setattr(
+        simons_cli,
+        "ensure_login",
+        lambda: (_ for _ in ()).throw(RuntimeError(secret)),
+    )
+    monkeypatch.setattr(
+        simons_cli,
+        "cmd_signal",
+        lambda args: pytest.fail("data command must not run"),
+    )
+
+    rc = simons_cli.main(["signal"])
+
+    output = capsys.readouterr()
+    assert rc != 0
+    assert secret not in output.out + output.err
 
 
 def test_check_login_failure_is_sanitized(monkeypatch, capsys):

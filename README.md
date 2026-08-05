@@ -2,7 +2,7 @@
 
 > 用同行业筛选、Engle–Granger 协整、FDR 校正、共线去重和滚动回测，研究 A 股均值回归配对。
 
-![Python](https://img.shields.io/badge/Python-3.12-3776AB)
+![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB)
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Status](https://img.shields.io/badge/Status-Beta-orange)
 ![Project](https://img.shields.io/badge/QUANTSKILLS-Community%20Project-blue)
@@ -39,9 +39,9 @@
 
 ### 联网运行条件
 
-数据请求只允许发往用户明确配置的受信 HTTPS 地址。`PANDADATA_BASE_URL` 必须是完整的 `https://` 地址，不得包含账号或密码；HTTP 地址和重定向都会被拒绝，不能用开关绕过。
+数据请求只允许发往用户明确配置、由 PandaData 数据服务方提供并维护的受信 HTTPS 地址。`PANDADATA_BASE_URL` 必须是完整的 `https://` 地址，不得包含账号、密码、查询参数或片段；HTTP 地址和重定向都会被拒绝，不能用开关绕过。
 
-当前 `panda_data==0.0.12` 公开默认地址使用 HTTP，因此不能直接用于本项目。要调用真实数据，使用者必须先取得由自己或数据服务方提供的受信 HTTPS 网关，并确认网关证书、访问权限和数据授权。没有该网关时，登录检查和真实数据研究不可运行，但离线测试、合成数据回测和算法复现仍可完成。
+当前 `panda_data==0.0.12` 公开默认地址使用 HTTP，因此不能直接用于本项目。要调用真实数据，PandaData 数据服务方必须先提供并维护受信 HTTPS 端点；使用者和本仓库不能代替服务方开启 HTTPS。没有该端点时，登录检查和真实数据研究不可运行，但离线测试、合成数据回测和算法复现仍可完成。
 
 登录可使用短期 `PANDADATA_TOKEN`，也可使用账号密码换取令牌。安全适配层会关闭 SDK 的 `user.json` 读写、磁盘自动登录和自动重新登录，并把会话限制在当前进程内。令牌到期后应结束当前进程，更新令牌或账号凭证，再重新启动命令。
 
@@ -95,38 +95,42 @@
 
 ## 快速开始
 
-已验收环境为 Windows、PowerShell 和 Python 3.12。Linux 与 macOS 尚未纳入正式验收。
+已验收环境为 Windows、PowerShell、Python 3.11 和 3.12。当前版本要求 Python >=3.11 且 <3.13；Linux 与 macOS 尚未纳入正式验收。
 
 ```powershell
 git clone https://github.com/quantskills/skill-simons-pairs-trading.git
 Set-Location skill-simons-pairs-trading
 
-py -3.12 -m venv .venv
+py -3.11 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --require-hashes -r requirements-lock.txt
 ```
 
-先配置受信 HTTPS 网关，并在当前进程中选择一种认证方式。优先使用短期令牌：
+先配置服务方提供的受信 HTTPS 端点，并在当前进程中选择一种认证方式。优先使用短期令牌：
 
 ```text
-PANDADATA_BASE_URL=https://你的受信网关.example
+PANDADATA_BASE_URL=https://服务方提供的地址.example
 PANDADATA_TOKEN=你的短期令牌
 ```
 
 也可以使用账号密码换取进程内令牌：
 
 ```text
-PANDADATA_BASE_URL=https://你的受信网关.example
+PANDADATA_BASE_URL=https://服务方提供的地址.example
 PANDADATA_USER=你的账号
 PANDADATA_PASSWORD=你的密码
 ```
 
 这些变量也可由使用者手工保存到用户级 `~/.pandadata.env`，但不应放进项目目录或版本库。程序不会把令牌、账号或密码写入 SDK 的 `user.json`，也不会从该文件恢复会话。令牌失效时，结束进程并重新认证。
 
-运行登录检查、回测和同日信号：
+先运行启动健康检查。它会检查 Python 版本、SDK 兼容性、DNS、TLS 握手、证书、主机名和凭证配置，但不会显示凭证；随后再运行登录检查、回测和同日信号：
 
 ```powershell
+python scripts\cli.py health-check
 python scripts\cli.py check-login
+
+# 服务方排查 HTTPS 时，可暂时只检查运行环境和传输
+python scripts\cli.py health-check --transport-only
 
 $env:SIMONS_TODAY = "20260710"
 
@@ -198,7 +202,7 @@ outputs/simons_pairs/
 - 查询时行业分类不能替代历史时点行业分类；
 - 股指期货无法精确替代个股空腿；
 - 数据供应商可能修订历史复权数据；
-- 真实数据运行依赖用户提供受信 HTTPS 网关；供应商公开默认 HTTP 地址会被拒绝；
+- 真实数据运行依赖 PandaData 数据服务方提供并维护受信 HTTPS 端点；供应商公开默认 HTTP 地址会被拒绝；
 - 令牌只在当前进程使用，过期后不会自动重新登录，必须重新启动并认证；
 - `panda_data` 的许可证、维护来源和数据使用权需由使用者自行核验；
 - 协整关系会因基本面或行业结构变化而失效；
@@ -206,7 +210,7 @@ outputs/simons_pairs/
 
 ## 验证
 
-离线测试不会读取用户级凭证，也不会调用真实网络接口；它覆盖算法、研究契约和安全失败路径。真实数据验收只有在使用者提供受信 HTTPS 网关并具备合法数据权限时才能进行：
+离线测试不会读取用户级凭证，也不会调用真实网络接口；它覆盖算法、研究契约和安全失败路径。真实数据验收只有在服务方提供受信 HTTPS 端点且使用者具备合法数据权限时才能进行：
 
 ```powershell
 python -m pytest tests -q
@@ -217,7 +221,7 @@ python -m compileall -q scripts tests
 
 ## 项目状态与维护
 
-本仓库当前为 Beta。离线算法和研究契约可复现；真实数据运行取决于受信 HTTPS 网关、有效认证及数据授权，因此验收状态为有条件可运行。
+本仓库当前为 Beta。离线算法和研究契约可复现；真实数据运行取决于服务方 HTTPS 端点、有效认证及数据授权，因此验收状态为有条件可运行。
 
 本仓库是 QUANTSKILLS Community Project，初始维护者为 Duzey；后续问题和变更通过 GitHub Issues 与 Pull Requests 处理。它不代表 QUANTSKILLS 官方认证、验证或背书。
 

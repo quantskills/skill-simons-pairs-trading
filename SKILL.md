@@ -18,34 +18,35 @@ description: "Screen and audit reproducible, research-only A-share pairs with ad
 
 ## 运行准备
 
-使用 Python 3.12，并在 Skill 根目录安装锁定依赖：
+使用 Python >=3.11 且 <3.13，并在 Skill 根目录安装锁定依赖：
 
 ```powershell
 python -m pip install --require-hashes -r requirements-lock.txt
 ```
 
-真实数据运行是有条件能力。必须由使用者提供受信 HTTPS 网关：
+真实数据运行是有条件能力。必须使用由 PandaData 数据服务方提供并维护的受信 HTTPS 端点：
 
 ```text
-PANDADATA_BASE_URL=https://你的受信网关.example
+PANDADATA_BASE_URL=https://服务方提供的地址.example
 PANDADATA_TOKEN=你的短期令牌
 ```
 
 也可用账号密码换取进程内令牌：
 
 ```text
-PANDADATA_BASE_URL=https://你的受信网关.example
+PANDADATA_BASE_URL=https://服务方提供的地址.example
 PANDADATA_USER=你的账号
 PANDADATA_PASSWORD=你的密码
 ```
 
-`PANDADATA_BASE_URL` 必须是完整的 HTTPS 地址，不得包含凭证。永久拒绝 HTTP 和重定向，不得尝试绕过。当前 `panda_data==0.0.12` 的公开默认地址使用 HTTP，因此必须先配置由使用者或数据服务方提供的受信 HTTPS 网关；没有网关时，只运行离线测试和合成数据研究，不执行真实数据命令。
+`PANDADATA_BASE_URL` 必须是完整的 HTTPS 地址，不得包含凭证、查询参数或片段。永久拒绝 HTTP 和重定向，不得尝试绕过。当前 `panda_data==0.0.12` 的公开默认地址使用 HTTP，因此 PandaData 数据服务方必须先提供 HTTPS 端点；使用者和本仓库不能代替服务方开启 HTTPS。没有该端点时，只运行离线测试和合成数据研究，不执行真实数据命令。
 
 凭证只从当前进程环境变量或用户级 `~/.pandadata.env` 读取。不得读取项目目录或当前工作目录中的 `.env`。安全适配层会关闭 SDK `user.json` 的读取、写入、自动登录和自动重新登录；会话只在当前进程内有效。令牌失效时，结束进程，更新认证信息后重新启动。不得在回复、日志、报告或仓库文件中展示凭证、token、完整第三方异常、私有缓存或私有研究结果。
 
-先执行：
+先执行启动健康检查，再验证登录：
 
 ```powershell
+python scripts\cli.py health-check
 python scripts\cli.py check-login
 ```
 
@@ -58,7 +59,7 @@ python scripts\cli.py check-login
 5. 每 60 个交易日重估协整关系与半衰期，执行滚动回测。
 6. 计算研究门控；只有同日、同配置、完整一致的 `RESEARCH_PASS` 报告才允许显示理论方向。
 
-仓库不附带行情、指数成分、行业数据、缓存或 `panda_data` 安装包。`panda_data` 的许可证和维护来源没有在其公开材料中得到核验；使用者必须自行确认软件许可、数据授权和网关合规性。第三方边界见 `THIRD_PARTY_NOTICES.md`。
+仓库不附带行情、指数成分、行业数据、缓存或 `panda_data` 安装包。`panda_data` 的许可证和维护来源没有在其公开材料中得到核验；使用者必须自行确认软件许可和数据授权，PandaData 数据服务方负责提供 HTTPS 端点。第三方边界见 `THIRD_PARTY_NOTICES.md`。
 
 常用命令：
 
@@ -153,7 +154,7 @@ python scripts\cli.py diagnose `
 
 ## 必须披露的限制
 
-明确说明 A 股个股做空和逐日券源未验证；T+1、涨跌停、停牌、成交冲击、融券召回、强平和容量未完整模拟；行业分类不是历史时点数据；股指期货不能精确替代个股空腿；供应商可能修订复权数据；协整关系可能失效。真实数据运行还依赖受信 HTTPS 网关、有效认证和合法数据权限；HTTP 永久禁用，令牌过期后必须重新启动并认证。历史结果和测试通过都不保证未来收益。
+明确说明 A 股个股做空和逐日券源未验证；T+1、涨跌停、停牌、成交冲击、融券召回、强平和容量未完整模拟；行业分类不是历史时点数据；股指期货不能精确替代个股空腿；供应商可能修订复权数据；协整关系可能失效。真实数据运行还依赖服务方 HTTPS 端点、有效认证和合法数据权限；HTTP 永久禁用，令牌过期后必须重新启动并认证。历史结果和测试通过都不保证未来收益。
 
 ## 验证
 
@@ -162,7 +163,7 @@ python -m pytest tests -q
 python -m compileall -q scripts tests
 ```
 
-测试通过只说明程序行为符合研究约定，不说明策略有效或适合实盘。离线测试和合成数据可以复现算法；真实数据验收必须满足受信 HTTPS 网关、认证和数据授权条件。统计定义见 `references/methodology.md`，使用示例见 `examples/01_daily_signal.md`。
+测试通过只说明程序行为符合研究约定，不说明策略有效或适合实盘。离线测试和合成数据可以复现算法；真实数据验收必须满足服务方 HTTPS 端点、认证和数据授权条件。统计定义见 `references/methodology.md`，使用示例见 `examples/01_daily_signal.md`。
 
 ## 维护与项目状态
 
