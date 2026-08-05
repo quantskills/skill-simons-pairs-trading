@@ -1,28 +1,27 @@
 # A 股协整配对交易研究
 
-> 用同行业筛选、Engle–Granger 协整、FDR 校正、共线去重和滚动回测，研究 A 股均值回归配对。
+> 从同行业股票里寻找相对稳定的价差关系，并用滚动样本外回测检验它是否真的站得住。
 
+![CI](https://github.com/quantskills/skill-simons-pairs-trading/actions/workflows/ci.yml/badge.svg?branch=main)
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Status](https://img.shields.io/badge/Status-Beta-orange)
-![Project](https://img.shields.io/badge/QUANTSKILLS-Community%20Project-blue)
 
-## 项目简介
+## 这个仓库做什么
 
-本项目提供一套可复核的 A 股配对交易研究流程。它从沪深 300 和中证 500 的历史成分中构建股票池，在同行业内筛选候选，使用复权日线做协整检验，再通过 Benjamini–Hochberg FDR、半衰期、PCA 共线诊断、层次聚类和单股重复限制压缩候选池。
+配对交易看起来简单：买入相对便宜的一只，同时卖出相对贵的一只，等价差回归。但真正容易出错的地方在前面——配对是不是事后挑出来的，协整关系是否还在，多次检验有没有制造“显著性”，成本和做空限制有没有漏算。
 
-入选配对进入滚动样本外回测。系统记录两腿收益、对冲比例、换手成本、融券持有费、持仓期峰值回撤和退出原因，并用保守门控决定是否允许继续纸面研究。
+这个仓库从沪深 300 和中证 500 的历史成分开始，只在同行业内找候选，再用复权日线、Engle–Granger 检验、FDR、半衰期和共线去重缩小范围。入选配对随后进入滚动样本外回测，两条腿的收益、对冲比例、交易成本、融券费、回撤和退出原因都会单独记录。
 
-项目借鉴公开的统计套利和均值回归方法，不声称复现 Jim Simons、Renaissance Technologies 或任何私有基金系统，也不构成投资建议或实盘许可。
+“Simons”只表示统计套利的研究风格。这里没有复现 Renaissance Technologies 的私有系统，也不把回测结果当成投资建议或实盘许可。
 
-## 适用场景
+## 可以拿它做什么
 
-- 在同一指数和行业范围内寻找协整候选；
-- 查看候选配对池、原始 p 值、FDR q 值、半衰期和当前 z-score；
-- 运行固定形成期、滚动重估和样本外回测；
-- 检查单股重复暴露与配对共线；
-- 在满足完整研究门控时生成理论信号；
-- 复核数据修订、成本假设和 A 股做空限制。
+- 在同一指数、同一行业内寻找协整候选
+- 查看原始 p 值、FDR q 值、半衰期和当前 z-score
+- 运行固定形成期、滚动重估和样本外回测
+- 检查单股重复出现和配对之间的共线问题
+- 在通过研究门槛后生成理论信号
+- 复查成本假设、数据修订和 A 股做空限制
 
 ## 数据接口
 
@@ -35,15 +34,15 @@
 
 普通未复权 `get_stock_daily` 收盘价不进入协整检验，以减少分红、送转和除权造成的伪关系。行业接口没有历史日期参数，因此历史研究使用查询时的行业分类，报告会明确披露这一限制。
 
-仓库不附带行情数据、指数成分、行业数据、缓存或 `panda_data` 安装包。使用者需要自行取得 PandaData 访问权限，并遵守相应的数据授权和使用条款。`panda_data==0.0.12` 的公开材料没有提供可核验的许可证和维护来源，使用前应自行完成授权与供应链核查；详见 [第三方说明](THIRD_PARTY_NOTICES.md)。
+仓库不附带行情、指数成分、行业数据、缓存或 PandaData 安装包。你需要自行取得数据权限，并确认自己的用途符合服务条款。`panda_data==0.0.12` 的公开材料没有写明许可证和源码维护地址，详情见[第三方说明](THIRD_PARTY_NOTICES.md)。
 
 ### 联网运行条件
 
-数据请求只允许发往用户明确配置、由 PandaData 数据服务方提供并维护的受信 HTTPS 地址。`PANDADATA_BASE_URL` 必须是完整的 `https://` 地址，不得包含账号、密码、查询参数或片段；HTTP 地址和重定向都会被拒绝，不能用开关绕过。
+数据请求只会发往你明确配置的 HTTPS 地址。`PANDADATA_BASE_URL` 不能夹带账号、密码、查询参数或片段；HTTP 和重定向都会被拒绝，也没有绕过开关。
 
-当前 `panda_data==0.0.12` 公开默认地址使用 HTTP，因此不能直接用于本项目。要调用真实数据，PandaData 数据服务方必须先提供并维护受信 HTTPS 端点；使用者和本仓库不能代替服务方开启 HTTPS。没有该端点时，登录检查和真实数据研究不可运行，但离线测试、合成数据回测和算法复现仍可完成。
+`panda_data==0.0.12` 自带的默认地址是 HTTP，不能直接使用。服务方尚未提供 HTTPS 地址时，真实登录和数据研究会停止，但离线测试与合成数据回测不受影响。
 
-登录可使用短期 `PANDADATA_TOKEN`，也可使用账号密码换取令牌。安全适配层会关闭 SDK 的 `user.json` 读写、磁盘自动登录和自动重新登录，并把会话限制在当前进程内。令牌到期后应结束当前进程，更新令牌或账号凭证，再重新启动命令。
+登录可以使用短期 `PANDADATA_TOKEN`，也可以用账号密码换取令牌。程序不会让 SDK 把会话写进 `user.json`，令牌只留在当前进程中；过期后重新认证并启动命令即可。
 
 ## 研究流程
 
@@ -95,7 +94,7 @@
 
 ## 快速开始
 
-已验收环境为 Windows、PowerShell、Python 3.11 和 3.12。当前版本要求 Python >=3.11 且 <3.13；Linux 与 macOS 尚未纳入正式验收。
+目前在 Windows、PowerShell、Python 3.11 和 3.12 下完成了测试。Python 需要 >=3.11 且 <3.13；Linux 和 macOS 暂未做完整验收。
 
 ```powershell
 git clone https://github.com/quantskills/skill-simons-pairs-trading.git
@@ -106,24 +105,25 @@ py -3.11 -m venv .venv
 python -m pip install --require-hashes -r requirements-lock.txt
 ```
 
-先配置服务方提供的受信 HTTPS 端点，并在当前进程中选择一种认证方式。优先使用短期令牌：
+先填入服务方提供的 HTTPS 地址，再选择一种认证方式。短期令牌更省事：
 
 ```text
-PANDADATA_BASE_URL=https://服务方提供的地址.example
+# 示例地址，请替换为服务方提供的真实地址
+PANDADATA_BASE_URL=https://data-provider.example
 PANDADATA_TOKEN=你的短期令牌
 ```
 
 也可以使用账号密码换取进程内令牌：
 
 ```text
-PANDADATA_BASE_URL=https://服务方提供的地址.example
+PANDADATA_BASE_URL=https://data-provider.example
 PANDADATA_USER=你的账号
 PANDADATA_PASSWORD=你的密码
 ```
 
-这些变量也可由使用者手工保存到用户级 `~/.pandadata.env`，但不应放进项目目录或版本库。程序不会把令牌、账号或密码写入 SDK 的 `user.json`，也不会从该文件恢复会话。令牌失效时，结束进程并重新认证。
+这些变量也可以手工放进用户目录下的 `~/.pandadata.env`，但不要放进项目目录或版本库。程序不会从 SDK 的 `user.json` 保存或恢复会话。
 
-先运行启动健康检查。它会检查 Python 版本、SDK 兼容性、DNS、TLS 握手、证书、主机名和凭证配置，但不会显示凭证；随后再运行登录检查、回测和同日信号：
+第一次使用先跑健康检查。它会检查 Python、SDK、DNS、TLS 证书和凭证是否就绪，但不会打印凭证内容：
 
 ```powershell
 python scripts\cli.py health-check
@@ -210,7 +210,7 @@ outputs/simons_pairs/
 
 ## 验证
 
-离线测试不会读取用户级凭证，也不会调用真实网络接口；它覆盖算法、研究契约和安全失败路径。真实数据验收只有在服务方提供受信 HTTPS 端点且使用者具备合法数据权限时才能进行：
+下面两条命令只做离线检查，不读取个人凭证，也不访问真实数据接口：
 
 ```powershell
 python -m pytest tests -q
@@ -219,13 +219,13 @@ python -m compileall -q scripts tests
 
 统计定义和记账口径见 [研究方法](references/methodology.md)，完整信号示例见 [每日信号示例](examples/01_daily_signal.md)。
 
-## 项目状态与维护
+## 维护情况
 
-本仓库当前为 Beta。离线算法和研究契约可复现；真实数据运行取决于服务方 HTTPS 端点、有效认证及数据授权，因此验收状态为有条件可运行。
+项目目前处于 beta 阶段。离线算法可以复现，真实数据仍取决于服务方 HTTPS 地址、有效账号和数据权限。
 
-本仓库是 QUANTSKILLS Community Project，初始维护者为 Duzey；后续问题和变更通过 GitHub Issues 与 Pull Requests 处理。它不代表 QUANTSKILLS 官方认证、验证或背书。
+问题和改进建议请走 GitHub Issues 或 Pull Requests，初始维护者为 Duzey。
 
-本项目只借鉴公开的配对交易与统计套利方法，与 Jim Simons、Renaissance Technologies 或其关联机构无隶属、合作或授权关系。
+本仓库只借鉴公开的配对交易与统计套利方法，与 Jim Simons、Renaissance Technologies 或其关联机构没有合作或授权关系。
 
 ## License
 
