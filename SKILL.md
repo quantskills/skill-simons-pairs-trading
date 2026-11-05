@@ -31,7 +31,7 @@ PANDADATA_USER=你的账号
 PANDADATA_PASSWORD=你的密码
 ```
 
-`PANDADATA_BASE_URL` 必须是完整的 HTTPS 地址，不能包含凭证、查询参数或片段。拒绝 HTTP 和重定向，不尝试绕过。`panda_data==0.0.12` 的默认地址使用 HTTP；服务方没有提供 HTTPS 地址时，只运行离线测试和合成数据研究。
+`PANDADATA_BASE_URL` 必须是完整的 HTTPS 地址，不能包含凭证、查询参数或片段。拒绝 HTTP 和重定向，不尝试绕过。`panda_data==1.0.6` 的默认地址使用 HTTP；服务方没有提供 HTTPS 地址时，只运行离线测试和合成数据研究。
 
 只从当前进程环境变量或用户目录下的 `~/.pandadata.env` 读取凭证，不读取项目目录或当前工作目录中的 `.env`。保持 SDK 的 `user.json` 读写和自动登录关闭，会话只在当前进程内有效。令牌失效后重新认证。不要在回复、日志、报告或仓库中展示凭证、令牌、完整第三方异常、私有缓存和私人研究结果。
 
@@ -156,3 +156,7 @@ python -m compileall -q scripts tests
 ```
 
 测试通过只说明程序行为符合研究约定，不说明策略有效或适合实盘。服务方 HTTPS 地址、认证或数据授权缺一时，停止真实数据命令。统计定义见 `references/methodology.md`，使用示例见 `examples/01_daily_signal.md`。
+
+## Pandadata compatibility
+
+[Pandadata 1.0.6 compatibility](references/pandadata-compatibility.md) — exact SDK baseline, validation scope, and shared guidance for all supported agent runtimes.

@@ -34,13 +34,13 @@
 
 普通未复权 `get_stock_daily` 收盘价不进入协整检验，以减少分红、送转和除权造成的伪关系。行业接口没有历史日期参数，因此历史研究使用查询时的行业分类，报告会明确披露这一限制。
 
-仓库不附带行情、指数成分、行业数据、缓存或 PandaData 安装包。你需要自行取得数据权限，并确认自己的用途符合服务条款。`panda_data==0.0.12` 的公开材料没有写明许可证和源码维护地址，详情见[第三方说明](THIRD_PARTY_NOTICES.md)。
+仓库不附带行情、指数成分、行业数据、缓存或 PandaData 安装包。你需要自行取得数据权限，并确认自己的用途符合服务条款。`panda_data==1.0.6` 的公开材料没有写明许可证和源码维护地址，详情见[第三方说明](THIRD_PARTY_NOTICES.md)。
 
 ### 联网运行条件
 
 数据请求只会发往你明确配置的 HTTPS 地址。`PANDADATA_BASE_URL` 不能夹带账号、密码、查询参数或片段；HTTP 和重定向都会被拒绝，也没有绕过开关。
 
-`panda_data==0.0.12` 自带的默认地址是 HTTP，不能直接使用。服务方尚未提供 HTTPS 地址时，真实登录和数据研究会停止，但离线测试与合成数据回测不受影响。
+`panda_data==1.0.6` 自带的默认地址是 HTTP，不能直接使用。服务方尚未提供 HTTPS 地址时，真实登录和数据研究会停止，但离线测试与合成数据回测不受影响。
 
 登录可以使用短期 `PANDADATA_TOKEN`，也可以用账号密码换取令牌。程序不会让 SDK 把会话写进 `user.json`，令牌只留在当前进程中；过期后重新认证并启动命令即可。
 
@@ -230,3 +230,6 @@ python -m compileall -q scripts tests
 ## License
 
 本项目采用 [MIT License](LICENSE)。
+
+
+Pandadata 兼容维护：[abgyjaguo](https://github.com/abgyjaguo)，保留原项目作者署名。

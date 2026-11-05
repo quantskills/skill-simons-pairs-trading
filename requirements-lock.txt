@@ -642,9 +642,8 @@ packaging==26.2 \
     #   matplotlib
     #   pytest
     #   statsmodels
-panda-data==0.0.12 \
-    --hash=sha256:428c9604d79f0127d4ccb38ce638e432eb6a0af2f115df98d79c4e0299d21ec4 \
-    --hash=sha256:b657a17daed0a11794e85e37e0d917ce42c77516fea7af0fc8977d54674b75b8
+panda-data==1.0.6 \
+    --hash=sha256:5437a54546946ca5dd3a24ec074d05342518f22310f04403e01adb4d034ce15f
     # via -r requirements.txt
 pandas==2.2.3 \
     --hash=sha256:062309c1b9ea12a50e8ce661145c6aab431b1e99530d3cd60640e255778bd43a \

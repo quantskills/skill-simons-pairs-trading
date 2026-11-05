@@ -5,6 +5,6 @@ matplotlib==3.10.8
 pyarrow==24.0.0
 scipy==1.16.3
 tabulate==0.10.0
-panda_data==0.0.12
+panda_data==1.0.6
 pytest==9.0.3
 ruff==0.16.1
