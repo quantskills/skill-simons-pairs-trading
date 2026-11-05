@@ -8,7 +8,7 @@ version = "1.2.0"
 description = "Research-only A-share cointegration and pairs-trading skill"
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
-license = "MIT"
+license = "GPL-3.0-only"
 license-files = ["LICENSE"]
 dependencies = [
   "pandas==2.2.3",
@@ -18,7 +18,7 @@ dependencies = [
   "pyarrow==24.0.0",
   "scipy==1.16.3",
   "tabulate==0.10.0",
-  "panda_data==0.0.12",
+  "panda_data==1.0.6",
 ]
 
 [project.scripts]

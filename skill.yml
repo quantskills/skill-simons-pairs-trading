@@ -5,7 +5,7 @@ metadata:
   repository_url: https://github.com/quantskills/skill-simons-pairs-trading
   project_type: skill
   collection: statistical-arbitrage
-  license: MIT
+  license: GPL-3.0-only
   category: trader-research
   tags:
     - pairs-trading
